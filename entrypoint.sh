@@ -42,6 +42,16 @@ if [[ "$ARGS" =~ "--mode" ]] && [ -n "${INPUT_CHECKBOX:-}" ]; then
   exit 1
 fi
 
+if ! [[ "${INPUT_ATTEMPTS}" =~ ^[1-9][0-9]*$ ]]; then
+  echo "Error: 'attempts' must be a positive integer, not '${INPUT_ATTEMPTS}'."
+  exit 1
+fi
+
+if ! [[ "${INPUT_RETRYDELAY}" =~ ^[0-9]+$ ]]; then
+  echo "Error: 'retryDelay' must be a non-negative integer, not '${INPUT_RETRYDELAY}'."
+  exit 1
+fi
+
 CHECKBOX=""
 if [ "${INPUT_CHECKBOX}" = true ]; then
   # Warn if the version is lower than 0.18.1
@@ -54,9 +64,23 @@ if [ "${INPUT_CHECKBOX}" = true ]; then
   fi
 fi
 
-# Execute lychee
-eval lychee ${CHECKBOX} ${FORMAT} --output ${LYCHEE_TMP} ${ARGS} 
-LYCHEE_EXIT_CODE=$?
+# Execute lychee, re-running it while links fail and attempts remain.
+# lychee's own --max-retries does not retry 5xx responses or failures to connect.
+attempt=1
+while true; do
+  # lychee leaves --output untouched when it fails before checking links, so clear the previous attempt's report.
+  : > "${LYCHEE_TMP}"
+  eval lychee ${CHECKBOX} ${FORMAT} --output ${LYCHEE_TMP} ${ARGS}
+  LYCHEE_EXIT_CODE=$?
+  if [ "${LYCHEE_EXIT_CODE}" -ne 2 ] || [ "${attempt}" -ge "${INPUT_ATTEMPTS}" ]; then
+    break
+  fi
+  # Show the failed attempt's report; the next attempt overwrites it.
+  cat "${LYCHEE_TMP}"
+  echo "::warning::Link check failed on attempt ${attempt} of ${INPUT_ATTEMPTS}; running lychee again in ${INPUT_RETRYDELAY}s"
+  sleep "${INPUT_RETRYDELAY}"
+  attempt=$((attempt + 1))
+done
 
 # If no links were found and `failIfEmpty` is set to `true` (and it is by default),
 # fail with an error later, but leave lychee exit code untouched.

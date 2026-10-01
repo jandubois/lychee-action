@@ -345,6 +345,56 @@ jobs:
             echo "Expected exit code 1"
             exit 1
           fi
+
+      - name: Start the retry test server
+        run: |
+          python3 fixtures/retry-server.py 8123 "${RUNNER_TEMP}/retry-requests.log" > "${RUNNER_TEMP}/retry-server.out" 2>&1 &
+          echo "http://127.0.0.1:8123/fails-once" > "${RUNNER_TEMP}/fails-once.md"
+          echo "http://127.0.0.1:8123/always-fails" > "${RUNNER_TEMP}/always-fails.md"
+          curl --silent --fail --retry 10 --retry-connrefused --retry-delay 1 --output /dev/null http://127.0.0.1:8123/ready || {
+            cat "${RUNNER_TEMP}/retry-server.out"
+            exit 1
+          }
+
+      - name: test attempts - a link that fails once passes on the second attempt
+        uses: ./
+        with:
+          args: --no-progress ${{ runner.temp }}/fails-once.md
+          attempts: 2
+          retryDelay: 1
+
+      - name: Check attempts - the passing link was requested twice
+        run: |
+          if [[ "$(grep --count --line-regexp /fails-once "${RUNNER_TEMP}/retry-requests.log")" != "2" ]]; then
+            echo "Expected exactly 2 requests to /fails-once. Log:"
+            cat "${RUNNER_TEMP}/retry-requests.log" "${RUNNER_TEMP}/retry-server.out"
+            exit 1
+          fi
+
+      - name: test attempts - a link that keeps failing fails the pipeline after the last attempt
+        id: attempts_exhausted_test
+        uses: ./
+        with:
+          args: --no-progress ${{ runner.temp }}/always-fails.md
+          attempts: 3
+          retryDelay: 1
+        continue-on-error: true
+
+      - name: Check attempts - the failing link failed the step after 3 requests
+        run: |
+          if [[ "${{ steps.attempts_exhausted_test.outcome }}" != "failure" ]]; then
+            echo "The step should have failed because the link always fails."
+            exit 1
+          fi
+          if [[ "${{ steps.attempts_exhausted_test.outputs.exit_code }}" != "2" ]]; then
+            echo "Expected exit code 2 from the last attempt, got '${{ steps.attempts_exhausted_test.outputs.exit_code }}'."
+            exit 1
+          fi
+          if [[ "$(grep --count --line-regexp /always-fails "${RUNNER_TEMP}/retry-requests.log")" != "3" ]]; then
+            echo "Expected exactly 3 requests to /always-fails. Log:"
+            cat "${RUNNER_TEMP}/retry-requests.log" "${RUNNER_TEMP}/retry-server.out"
+            exit 1
+          fi
   lychee-action-arm:
     runs-on: ubuntu-24.04-arm
     name: Basic check for ARM-based runners
