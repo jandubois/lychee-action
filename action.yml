@@ -5,6 +5,10 @@ inputs:
     description: "Lychee arguments (https://github.com/lycheeverse/lychee#commandline-parameters)"
     default: "--verbose --no-progress './**/*.md' './**/*.html' './**/*.rst'"
     required: false
+  attempts:
+    description: "Run lychee up to this many times while links fail (i.e. when lychee exit code is 2)"
+    default: 1
+    required: false
   debug:
     description: "Enable debug output in action (set -x). Helpful for troubleshooting."
     default: false
@@ -32,6 +36,10 @@ inputs:
   output:
     description: "Summary output file path"
     default: "lychee/out.md"
+    required: false
+  retryDelay:
+    description: "Seconds to wait before running lychee again"
+    default: 10
     required: false
   checkbox:
     description: "Add Markdown Styled Checkboxes to the output"
@@ -126,6 +134,8 @@ runs:
         INPUT_JOBSUMMARY: ${{ inputs.JOBSUMMARY }}
         INPUT_CHECKBOX: ${{ inputs.CHECKBOX }}
         INPUT_OUTPUT: ${{ inputs.OUTPUT }}
+        INPUT_ATTEMPTS: ${{ inputs.ATTEMPTS }}
+        INPUT_RETRYDELAY: ${{ inputs.RETRYDELAY }}
         SUMMARY_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}#summary-${{ job.check_run_id }}
       shell: bash
 branding:

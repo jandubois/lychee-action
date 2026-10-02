@@ -57,6 +57,7 @@ On top of that, the action also supports some additional arguments.
 | Argument         | Examples                | Description                                                                             |
 | ---------------- | ----------------------- | --------------------------------------------------------------------------------------- |
 | args             | `--cache`, `--insecure` | See [lychee's documentation][lychee-args] for all arguments and values                  |
+| attempts         | `3`                     | Run lychee up to this many times while links fail (exit code 2)                         |
 | debug            | `false`                 | Enable debug output in action (set -x). Helpful for troubleshooting                     |
 | fail             | `false`                 | Fail workflow run on error (i.e. when [lychee exit code][lychee-exit] is not 0)         |
 | failIfEmpty      | `false`                 | Fail entire pipeline if no links were found                                             |
@@ -64,6 +65,7 @@ On top of that, the action also supports some additional arguments.
 | jobSummary       | `false`                 | Write GitHub job summary (on Markdown output only)                                      |
 | lycheeVersion    | `v0.15.0`, `nightly`    | Overwrite the lychee version to be used                                                 |
 | output           | `lychee/results.md`     | Summary output file path                                                                |
+| retryDelay       | `30`                    | Seconds to wait before running lychee again                                             |
 | token            | `""`                    | Custom GitHub token to use for API calls                                                |
 | workingDirectory | `.`, `path/to/subdir/`  | Custom working directory to run lychee in. This affects where `output.md` gets created. |
 
@@ -118,6 +120,8 @@ In order to mitigate issues regarding rate limiting or to reduce stress on exter
 It will compare and save the cache based on the given key.
 So in this setup, as long as a user triggers the CI run from the same commit, it will be the same key. The first run will save the cache, subsequent runs will not update it (because it's the same commit hash).
 For restoring the cache, the most recent available one is used (commit hash doesn't matter).
+
+Since lychee 0.24, the cache holds only links that passed, so with `attempts` set, each new attempt re-checks just the links that failed.
 
 If you need more control over when caches are restored and saved, you can split the cache step and e.g. ensure to always save the cache (also when the link check step fails):
 
